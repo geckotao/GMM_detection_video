@@ -31,7 +31,7 @@ class GMMVideoDetector:
                     print(error_msg)
                     messagebox.showerror("错误", error_msg)
     def init_log_file(self):
-        """初始化日志文件"""
+
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             log_filename = f"检测日志_{timestamp}.txt"
@@ -46,7 +46,7 @@ class GMMVideoDetector:
             self.log_file_path = None
 
     def log_message(self, message):
-        """记录日志信息"""
+
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_entry = f"[{timestamp}] {message}\n"
 
@@ -60,7 +60,7 @@ class GMMVideoDetector:
                 print(f"写入日志失败: {str(e)}")
 
     def process_ui_queue(self):
-        """处理UI队列中的任务，确保线程安全地更新UI"""
+
         while not self.ui_queue.empty():
             try:
                 task = self.ui_queue.get_nowait()
@@ -862,15 +862,13 @@ ROI 用于限定检测范围，排除干扰提升效率。
                 self.safe_ui_call(messagebox.showinfo, "完成", "所有视频处理已完成")
         except Exception as e:
             self.processing = False
-            # 打印完整异常信息（包括类型和堆栈）
+
             import traceback
-            error_detail = traceback.format_exc()  # 获取完整堆栈信息
+            error_detail = traceback.format_exc()  
             error_msg = f"处理出错: {str(e)}\n详细信息: {error_detail}"
             self.log_message(error_msg)
             self.safe_ui_call(messagebox.showerror, "错误", error_msg)
 
-            
-            # 执行资源释放
             release_error = ""
             if hasattr(self, 'cap') and self.cap is not None:
                 try:
@@ -1050,17 +1048,16 @@ ROI 用于限定检测范围，排除干扰提升效率。
             except Exception as e:
                 self.log_message(f"[{timestamp}] 释放 cap 出错: {str(e)}")
             finally:
-                self.cap = None  # 确保置为 None
+                self.cap = None  
 
  
         self.log_message("已停止处理视频")
         self.safe_ui_call(self.status_var.set, f"已停止 | 当前倍速: {self.current_speed}倍")
         self.safe_ui_call(self.progress_label.config, text="处理已停止")
         
-        # 重置GMM模型
+ 
         self.gmm = None
         
-        # 更新UI状态
         self.safe_ui_call(self.status_var.set, f"已停止 | 当前倍速: {self.current_speed}倍")
         self.safe_ui_call(self.progress_label.config, text="处理已停止")
         self.safe_ui_call(self.progress_var.set, 0)
