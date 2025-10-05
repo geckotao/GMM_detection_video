@@ -74,11 +74,14 @@ class GMMVideoDetector:
         if hasattr(self, 'root') and self.root.winfo_exists():
             self.root.after(50, self.process_ui_queue)
 
+    def safe_ui_call(self, func, *args, **kwargs):
+        self.ui_queue.put(lambda: func(*args, **kwargs))
+
     def __init__(self, root):
         self.root = root
         self.root.title("视频画面变化检测 by geckotao")
         self.dpi_scale = self.get_dpi_scale()
-        self.base_font_size = 10  # 基准字体大小
+        self.base_font_size = 10 
         self.scaled_font_size = int(self.base_font_size * self.dpi_scale)
         self.root.geometry(f"{int(1200 * self.dpi_scale)}x{int(700 * self.dpi_scale)}")
         self.root.minsize(int(1024 * self.dpi_scale), int(700 * self.dpi_scale))
@@ -857,14 +860,29 @@ ROI 用于限定检测范围，排除干扰提升效率。
             if self.current_video_index >= len(self.video_paths):
                 self.log_message(f"所有 {len(self.video_paths)} 个视频处理完成")
                 self.safe_ui_call(messagebox.showinfo, "完成", "所有视频处理已完成")
-
         except Exception as e:
             self.processing = False
-            error_msg = f"处理出错: {str(e)}"
+            # 打印完整异常信息（包括类型和堆栈）
+            import traceback
+            error_detail = traceback.format_exc()  # 获取完整堆栈信息
+            error_msg = f"处理出错: {str(e)}\n详细信息: {error_detail}"
             self.log_message(error_msg)
             self.safe_ui_call(messagebox.showerror, "错误", error_msg)
-            if self.cap:
-                self.cap.release()
+
+            
+            # 执行资源释放
+            release_error = ""
+            if hasattr(self, 'cap') and self.cap is not None:
+                try:
+                    if self.cap.isOpened():
+                        self.cap.release()
+                        self.log_message("异常处理中释放了cap资源")
+                except Exception as release_err:
+                    release_error = f"；释放资源时也出错: {str(release_err)}"
+                    self.log_message(release_error)
+                finally:
+                    self.cap = None
+ 
 
     def preview_selected_video(self):
         if not self.video_paths:
@@ -1024,20 +1042,32 @@ ROI 用于限定检测范围，排除干扰提升效率。
             self.info_label.config(text="视频处理已暂停")
 
     def stop_processing(self):
-        self.processing = False
-        self.paused = False
-        self.progress_label.config(text="已停止处理")
-        self.status_var.set(f"已停止 | 当前倍速: {self.current_speed}倍")
+        timestamp = datetime.now().strftime("%H:%M:%S")
         if self.cap is not None:
             try:
                 self.cap.release()
-            except:
-                pass
-            self.cap = None
-        self.log_message("停止视频处理")
-        self.info_label.config(text="视频处理已停止")
-        if hasattr(self, '_last_preview_update_time'):
-            delattr(self, '_last_preview_update_time')
+                self.log_message(f"[{timestamp}] self.cap 已释放")
+            except Exception as e:
+                self.log_message(f"[{timestamp}] 释放 cap 出错: {str(e)}")
+            finally:
+                self.cap = None  # 确保置为 None
+
+ 
+        self.log_message("已停止处理视频")
+        self.safe_ui_call(self.status_var.set, f"已停止 | 当前倍速: {self.current_speed}倍")
+        self.safe_ui_call(self.progress_label.config, text="处理已停止")
+        
+        # 重置GMM模型
+        self.gmm = None
+        
+        # 更新UI状态
+        self.safe_ui_call(self.status_var.set, f"已停止 | 当前倍速: {self.current_speed}倍")
+        self.safe_ui_call(self.progress_label.config, text="处理已停止")
+        self.safe_ui_call(self.progress_var.set, 0)
+        self.safe_ui_call(self.info_label.config, text="处理已停止")
+        
+        self.current_video_index = 0
+        self.log_message("处理已停止")
 
     def save_screenshot(self, marked_frame, video_basename, frame_num):
         try:
