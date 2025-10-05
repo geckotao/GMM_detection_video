@@ -9,7 +9,7 @@ from datetime import datetime
 from PIL import Image, ImageTk
 import tempfile
 import queue
-import ctypes  # 新增：用于获取DPI信息
+import ctypes
 
 class GMMVideoDetector:
     def ensure_directory_exists(self, path):
@@ -17,12 +17,15 @@ class GMMVideoDetector:
             return
         for attempt in range(3):
             try:
-                os.makedirs(path, exist_ok=True)  # exist_ok=True 避免重复创建报错
-                self.log_message(f"创建目录: {path}")
+                os.makedirs(path, exist_ok=True)
+                if hasattr(self, 'log_file_path'):
+                    self.log_message(f"创建目录: {path}")
+                else:
+                    print(f"创建目录: {path}")
                 return
             except Exception as e:
                 if attempt < 2:
-                    time.sleep(0.1)  # 等待100ms再试
+                    time.sleep(0.1)
                 else:
                     error_msg = f"创建目录失败 {path}: {str(e)}"
                     print(error_msg)
@@ -33,9 +36,8 @@ class GMMVideoDetector:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             log_filename = f"检测日志_{timestamp}.txt"
             self.log_file_path = os.path.join(self.log_dir, log_filename)
-            # 创建日志文件（如果不存在）
             with open(self.log_file_path, 'a', encoding='utf-8') as f:
-                pass  # 仅创建文件
+                pass
             self.log_message(f"日志文件初始化成功: {self.log_file_path}")
         except Exception as e:
             error_msg = f"初始化日志文件失败: {str(e)}"
@@ -47,11 +49,9 @@ class GMMVideoDetector:
         """记录日志信息"""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_entry = f"[{timestamp}] {message}\n"
-        
-        # 打印到控制台
+
         print(log_entry.strip())
-        
-        # 写入日志文件
+
         if self.log_file_path:
             try:
                 with open(self.log_file_path, 'a', encoding='utf-8') as f:
@@ -64,35 +64,27 @@ class GMMVideoDetector:
         while not self.ui_queue.empty():
             try:
                 task = self.ui_queue.get_nowait()
-                task()  # 执行队列中的任务
+                task()
                 self.ui_queue.task_done()
             except queue.Empty:
                 break
             except Exception as e:
                 self.log_message(f"处理UI任务时出错: {str(e)}")
-        
-        # 继续定时检查队列
+
         if hasattr(self, 'root') and self.root.winfo_exists():
             self.root.after(50, self.process_ui_queue)
 
     def __init__(self, root):
         self.root = root
         self.root.title("视频画面变化检测 by geckotao")
-        
-        # 新增：获取系统DPI并计算缩放因子
         self.dpi_scale = self.get_dpi_scale()
         self.base_font_size = 10  # 基准字体大小
         self.scaled_font_size = int(self.base_font_size * self.dpi_scale)
-        
-        # 根据DPI设置初始窗口大小
         self.root.geometry(f"{int(1200 * self.dpi_scale)}x{int(700 * self.dpi_scale)}")
         self.root.minsize(int(1024 * self.dpi_scale), int(700 * self.dpi_scale))
         self.root.configure(bg="#f0f0f0")
-        
         self.setup_dpi_awareness()
         self.style = ttk.Style()
-
-        # 基础样式配置
         self.style.configure("TFrame", background="#f0f0f0")
         self.style.configure("TLabel", 
                             background="#f0f0f0", 
@@ -100,21 +92,15 @@ class GMMVideoDetector:
         self.style.configure("TButton", 
                             font=("SimHei", self.scaled_font_size), 
                             padding=int(5 * self.dpi_scale))
-
-        # 输入框样式（关键配置，解决字体缩放问题）
         self.style.configure("TEntry", 
-                            font=("SimHei", self.scaled_font_size),  # 明确字体和缩放后的大小
-                            padding=int(3 * self.dpi_scale))  # 内边距缩放
+                            font=("SimHei", self.scaled_font_size), 
+                            padding=int(3 * self.dpi_scale)) 
         self.style.map("TEntry",
                     font=[("focus", ("SimHei", self.scaled_font_size)),
                             ("disabled", ("SimHei", self.scaled_font_size))])
-
-        # Notebook标签样式
         self.style.configure("TNotebook.Tab", 
                             font=("SimHei", self.scaled_font_size),
                             padding=(int(10 * self.dpi_scale), int(5 * self.dpi_scale)))
-
-        # 标签框架样式
         self.style.configure("TLabelframe", 
                             background="#f0f0f0", 
                             borderwidth=1)
@@ -122,8 +108,6 @@ class GMMVideoDetector:
                             background="#f0f0f0", 
                             font=("SimHei", self.scaled_font_size, "bold"), 
                             padding=(int(5 * self.dpi_scale), int(2 * self.dpi_scale)))
-
-        # 强调按钮样式
         self.style.configure("Accent.TButton", 
                             font=("SimHei", self.scaled_font_size, "bold"), 
                             background="#4a90e2", 
@@ -131,13 +115,11 @@ class GMMVideoDetector:
         self.style.map("Accent.TButton", 
                     background=[("active", "#357abd"), ("pressed", "#2a5f90")])
         
-        # 日志
         self.log_dir = os.path.join(os.getcwd(), "检测日志")
-        self.log_file = None
         self.ensure_directory_exists(self.log_dir)
+        self.log_file = None
         self.init_log_file()
         
-        # 核心变量
         self.video_paths = []
         self.current_video_index = 0
         self.processing = False
@@ -156,15 +138,15 @@ class GMMVideoDetector:
         self.speed_levels = [1, 2, 4, 8, 16, 24, 32, 64]
         self.current_speed = 1
         self.speed_lock = threading.Lock()
-        # 目标高度压缩为（480P），可加速处理速度
+
         self.target_height = 480
-        # 线程安全 UI 队列
+
         self.ui_queue = queue.Queue()
         self.root.after(50, self.process_ui_queue)
-        # 创建目录
+
         self.ensure_directory_exists(self.save_path)
         self.ensure_directory_exists(self.backup_save_path)
-        # 设置图标
+
         try:
             icon_path = os.path.join(os.path.dirname(__file__), "icon.png")
             if os.path.exists(icon_path):
@@ -173,7 +155,7 @@ class GMMVideoDetector:
                 self.log_message(f"成功设置窗口图标: {icon_path}")
         except Exception as e:
             self.log_message(f"设置窗口图标失败: {str(e)}")
-        # 创建 UI
+
         self.create_widgets()
         self.log_message("程序启动")
         self.log_message(f"主保存路径: {self.save_path}")
@@ -182,23 +164,22 @@ class GMMVideoDetector:
         self.log_message(f"目标处理分辨率: 高度 ≤ {self.target_height}P")
         self.log_message(f"DPI缩放因子: {self.dpi_scale:.2f}")
 
-    # 新增：获取DPI缩放因子
     def get_dpi_scale(self):
         try:
             if os.name == 'nt':
-                # Windows系统获取DPI
+
                 user32 = ctypes.windll.user32
                 user32.SetProcessDPIAware()
                 dpi = user32.GetDpiForSystem()
-                return dpi / 96.0  # 96是标准DPI
+                return dpi / 96.0  
             else:
-                # 其他系统使用屏幕尺寸估算
+
                 screen_width = self.root.winfo_screenwidth()
-                if screen_width >= 3840:  # 4K
+                if screen_width >= 3840:  
                     return 2.0
-                elif screen_width >= 2560:  # 2K
+                elif screen_width >= 2560:  
                     return 1.5
-                else:  # 1080P及以下
+                else: 
                     return 1.0
         except:
             return 1.0
@@ -207,18 +188,14 @@ class GMMVideoDetector:
         try:
             if os.name == 'nt':
                 import ctypes
-                # 设置PROCESS_PER_MONITOR_DPI_AWARE以支持多显示器不同DPI
                 ctypes.windll.shcore.SetProcessDpiAwareness(2)
         except:
             pass
-
-    # ... 其他原有方法保持不变 ...
 
     def create_widgets(self):
         self.root.grid_rowconfigure(0, weight=1)
         self.root.grid_columnconfigure(1, weight=1)
         
-        # 根据DPI缩放间距
         padx = int(8 * self.dpi_scale)
         pady = int(8 * self.dpi_scale)
         
@@ -230,7 +207,6 @@ class GMMVideoDetector:
         control_notebook = ttk.Notebook(left_frame)
         control_notebook.grid(row=0, column=0, sticky="nsew", padx=int(5 * self.dpi_scale), pady=int(5 * self.dpi_scale))
 
-        # --- 参数设置 ---
         settings_frame = ttk.Frame(control_notebook)
         control_notebook.add(settings_frame, text="参数设置")
         settings_canvas = tk.Canvas(settings_frame, highlightthickness=0, bg="#f0f0f0")
@@ -249,7 +225,6 @@ class GMMVideoDetector:
         frame_pady = (int(5 * self.dpi_scale), int(8 * self.dpi_scale))
         inner_pad = int(10 * self.dpi_scale)
 
-        # 视频文件管理
         file_frame = ttk.LabelFrame(settings_scrollable_frame, text="视频文件管理", padding=(inner_pad, int(8 * self.dpi_scale)))
         file_frame.grid(row=row, column=0, sticky="ew", pady=frame_pady, padx=int(5 * self.dpi_scale))
         settings_scrollable_frame.columnconfigure(0, weight=1)
@@ -262,7 +237,7 @@ class GMMVideoDetector:
 
         list_frame_inner = ttk.Frame(file_frame)
         list_frame_inner.pack(fill=tk.X, pady=(0, int(8 * self.dpi_scale)))
-        # 调整列表框高度
+
         self.video_listbox = tk.Listbox(list_frame_inner, height=int(6 * self.dpi_scale), selectmode=tk.EXTENDED, bd=1, relief=tk.SUNKEN,
                                        font=("SimHei", self.scaled_font_size))
         self.video_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -275,7 +250,6 @@ class GMMVideoDetector:
         ttk.Button(action_btn_frame, text="移除", command=self.remove_video).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, int(3 * self.dpi_scale)))
         ttk.Button(action_btn_frame, text="预览", command=self.preview_selected_video).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(int(3 * self.dpi_scale), 0))
 
-        # ROI 设置
         roi_frame = ttk.LabelFrame(settings_scrollable_frame, text="关注区域 (ROI)", padding=(inner_pad, int(8 * self.dpi_scale)))
         roi_frame.grid(row=row, column=0, sticky="ew", pady=frame_pady, padx=int(5 * self.dpi_scale))
         row += 1
@@ -286,7 +260,6 @@ class GMMVideoDetector:
         ttk.Label(roi_frame, text="操作: 左键加点，右键删点，R重置，滚轮缩放，关闭窗口确认。", 
                  font=("TkDefaultFont", max(8, int(8 * self.dpi_scale))), foreground="#666666").pack(anchor=tk.W)
 
-        # 检测参数
         param_frame = ttk.LabelFrame(settings_scrollable_frame, text="检测参数", padding=(inner_pad, int(8 * self.dpi_scale)))
         param_frame.grid(row=row, column=0, sticky="ew", pady=frame_pady, padx=int(5 * self.dpi_scale))
         row += 1
@@ -303,7 +276,7 @@ class GMMVideoDetector:
             thresh_f, 
             textvariable=self.threshold_entry_var, 
             width=int(8 * self.dpi_scale),
-            font=("SimHei", self.scaled_font_size)  # 直接指定字体
+            font=("SimHei", self.scaled_font_size) 
         )
         self.threshold_entry.pack(side=tk.RIGHT, padx=(int(5 * self.dpi_scale), 0))
         self.threshold_entry.bind("<Return>", self.validate_threshold_input)
@@ -320,12 +293,11 @@ class GMMVideoDetector:
             intv_f, 
             textvariable=self.interval_entry_var, 
             width=int(8 * self.dpi_scale),
-            font=("SimHei", self.scaled_font_size)  # 直接指定字体
+            font=("SimHei", self.scaled_font_size)
         )        
         self.interval_entry.pack(side=tk.RIGHT, padx=(int(5 * self.dpi_scale), 0))
         self.interval_entry.bind("<Return>", self.validate_interval_input)
 
-        # 保存路径
         save_frame = ttk.LabelFrame(settings_scrollable_frame, text="截图保存", padding=(inner_pad, int(8 * self.dpi_scale)))
         save_frame.grid(row=row, column=0, sticky="ew", pady=frame_pady, padx=int(5 * self.dpi_scale))
         row += 1
@@ -336,7 +308,7 @@ class GMMVideoDetector:
         ttk.Entry(
             path_f1, 
             textvariable=self.save_path_var,
-            font=("SimHei", self.scaled_font_size)  # 直接指定字体
+            font=("SimHei", self.scaled_font_size) 
         ).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, int(3 * self.dpi_scale)))
 
         ttk.Button(path_f1, text="更改", command=self.change_save_path, width=int(6 * self.dpi_scale)).pack(side=tk.RIGHT)
@@ -348,7 +320,6 @@ class GMMVideoDetector:
 
         ttk.Label(settings_scrollable_frame, text="").grid(row=row, column=0, pady=int(10 * self.dpi_scale))
 
-        # --- 处理控制 ---
         control_frame_nb = ttk.Frame(control_notebook)
         control_notebook.add(control_frame_nb, text="处理控制")
         control_frame_nb.grid_rowconfigure(4, weight=1)
@@ -394,7 +365,6 @@ class GMMVideoDetector:
         ttk.Button(btn_frame, text="停止", command=self.stop_processing).pack(
             side=tk.LEFT, fill=tk.X, expand=True, padx=int(2 * self.dpi_scale))
 
-        # --- 帮助 ---
         help_frame = ttk.Frame(control_notebook)
         control_notebook.add(help_frame, text="使用帮助")
         help_text_widget = tk.Text(
@@ -464,7 +434,6 @@ ROI 用于限定检测范围，排除干扰提升效率。
         help_text_widget.pack(side="left", fill="both", expand=True)
         help_scrollbar.pack(side="right", fill="y")
 
-        # ========== 右侧预览区域 ==========
         right_frame = ttk.Frame(self.root)
         right_frame.grid(row=0, column=1, sticky="nsew", padx=(padx//2, padx), pady=pady)
         right_frame.grid_rowconfigure(0, weight=1)
@@ -480,7 +449,6 @@ ROI 用于限定检测范围，排除干扰提升效率。
         self.video_label = ttk.Label(preview_container, background="black")
         self.video_label.grid(row=0, column=0, sticky="nsew")
 
-        # 绑定 <Configure> 事件到 preview_container
         preview_container.bind("<Configure>", self.on_preview_resize)
 
         info_bar = ttk.Frame(right_frame, height=int(30 * self.dpi_scale))
@@ -489,8 +457,6 @@ ROI 用于限定检测范围，排除干扰提升效率。
         self.info_label = ttk.Label(info_bar, text="就绪 - 请添加视频文件并开始处理", font=("SimHei", max(9, int(9 * self.dpi_scale))))
         self.info_label.pack(side=tk.LEFT, padx=int(5 * self.dpi_scale))
 
-
-    # ========== 新增：窗口缩放响应 ==========
     def on_preview_resize(self, event=None):
         if event.width < 50 or event.height < 50:
             return
@@ -505,13 +471,11 @@ ROI 用于限定检测范围，排除干扰提升效率。
             rgb_frame = cv2.cvtColor(self.preview_frame, cv2.COLOR_BGR2RGB)
             self.display_frame(rgb_frame)
 
-    # ========== 核心：修正后的 display_frame ==========
     def display_frame(self, frame):
-        # 缓存当前帧用于窗口缩放重绘
+
         self._last_displayed_frame = frame.copy()
 
-        # 获取 preview_container 的实际尺寸
-        container = self.video_label.master  # 即 preview_container
+        container = self.video_label.master 
         container.update_idletasks()
         display_width = container.winfo_width()
         display_height = container.winfo_height()
@@ -523,15 +487,12 @@ ROI 用于限定检测范围，排除干扰提升效率。
         if frame_width == 0 or frame_height == 0:
             return
 
-        # 按比例缩放（保持宽高比）
         scale = min(display_width / frame_width, display_height / frame_height)
         new_width = int(frame_width * scale)
         new_height = int(frame_height * scale)
 
-        # 缩放帧
         resized_frame = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_AREA)
 
-        # 绘制 ROI（如果存在）
         if self.roi_selected and self.roi_points and self.preview_frame is not None:
             orig_h, orig_w = self.preview_frame.shape[:2]
             scale_x = new_width / orig_w
@@ -541,13 +502,11 @@ ROI 用于限定检测范围，排除干扰提升效率。
             ], dtype=np.int32)
             cv2.polylines(resized_frame, [scaled_pts], isClosed=True, color=(0, 255, 0), thickness=2)
 
-        # 转为 PhotoImage 并显示
         img = Image.fromarray(resized_frame)
         imgtk = ImageTk.PhotoImage(image=img)
         self.video_label.config(image=imgtk)
-        self.video_label.image = imgtk  # 防止被垃圾回收
+        self.video_label.image = imgtk
 
-    # ========== 其余方法（保持不变）==========
     def validate_threshold_input(self, event=None):
         try:
             value = float(self.threshold_entry_var.get())
@@ -863,7 +822,7 @@ ROI 用于限定检测范围，排除干扰提升效率。
                     now_time = time.time()
                     if not hasattr(self, '_last_preview_update_time'):
                         self._last_preview_update_time = now_time
-                    # 每 300ms（0.3秒）强制更新一次预览，无论倍速多高
+
                     if now_time - self._last_preview_update_time >= 0.3:
                         color_mask = np.zeros_like(frame)
                         color_mask[:, :, 2] = fg_mask
