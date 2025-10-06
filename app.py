@@ -125,7 +125,6 @@ class GMMVideoDetector:
         self.gmm = None
         self.change_threshold = 0.05
         self.save_path = os.path.join(os.getcwd(), "变化截图")
-        self.backup_save_path = os.path.join(tempfile.gettempdir(), "变化截图备份")
         self.cap = None
         self.last_change_time = 0
         self.min_interval = 1
@@ -138,7 +137,6 @@ class GMMVideoDetector:
         self.ui_queue = queue.Queue()
         self.root.after(50, self.process_ui_queue)
         self.ensure_directory_exists(self.save_path)
-        self.ensure_directory_exists(self.backup_save_path)
         try:
             icon_path = os.path.join(os.path.dirname(__file__), "icon.png")
             if os.path.exists(icon_path):
@@ -149,8 +147,7 @@ class GMMVideoDetector:
             self.log_message(f"设置窗口图标失败: {str(e)}")
         self.create_widgets()
         self.log_message("程序启动")
-        self.log_message(f"主保存路径: {self.save_path}")
-        self.log_message(f"备份保存路径: {self.backup_save_path}")
+        self.log_message(f"保存路径: {self.save_path}")
         self.log_message(f"初始处理倍速: {self.current_speed}倍")
         self.log_message(f"目标处理分辨率: 高度 ≤ {self.target_height}P")
         self.log_message(f"DPI缩放因子: {self.dpi_scale:.2f}")
@@ -276,7 +273,7 @@ class GMMVideoDetector:
         save_frame = ttk.LabelFrame(settings_scrollable_frame, text="截图保存", padding=(inner_pad, int(8 * self.dpi_scale)))
         save_frame.grid(row=row, column=0, sticky="ew", pady=frame_pady, padx=int(5 * self.dpi_scale))
         row += 1
-        ttk.Label(save_frame, text="主保存路径:").pack(anchor=tk.W, pady=(0, int(2 * self.dpi_scale)))
+        ttk.Label(save_frame, text="保存路径:").pack(anchor=tk.W, pady=(0, int(2 * self.dpi_scale)))
         path_f1 = ttk.Frame(save_frame)
         path_f1.pack(fill=tk.X, pady=(0, int(5 * self.dpi_scale)))
         self.save_path_var = tk.StringVar(value=self.save_path)
@@ -286,11 +283,6 @@ class GMMVideoDetector:
             font=("SimHei", self.scaled_font_size) 
         ).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, int(3 * self.dpi_scale)))
         ttk.Button(path_f1, text="更改", command=self.change_save_path, width=int(6 * self.dpi_scale)).pack(side=tk.RIGHT)
-        ttk.Label(save_frame, text="备份路径:").pack(anchor=tk.W, pady=(int(5 * self.dpi_scale), int(2 * self.dpi_scale)))
-        self.backup_path_label = ttk.Label(save_frame, text=self.backup_save_path, 
-                                          font=("TkDefaultFont", max(8, int(8 * self.dpi_scale))), foreground="#666666", 
-                                          wraplength=int(250 * self.dpi_scale), justify=tk.LEFT)
-        self.backup_path_label.pack(anchor=tk.W, pady=(0, int(5 * self.dpi_scale)))
         ttk.Label(settings_scrollable_frame, text="").grid(row=row, column=0, pady=int(10 * self.dpi_scale))
         control_frame_nb = ttk.Frame(control_notebook)
         control_notebook.add(control_frame_nb, text="处理控制")
@@ -365,7 +357,7 @@ ROI 用于限定检测范围，排除干扰提升效率。
 **截图最小间隔**：两次截图之间至少间隔指定秒数，避免截图过多。
 4. 【设置保存路径】
 默认截图保存在程序目录下的“变化截图”文件夹。
-可点击“更改”指定其他路径；若主路径不可写，将自动尝试备份路径。
+可点击“更改”指定其他路径。
 5. 【开始处理】
 点击“开始处理”按钮，程序将逐个分析视频。
 支持暂停/继续、停止操作。
@@ -770,8 +762,6 @@ ROI 用于限定检测范围，排除干扰提升效率。
             self.safe_ui_call(self.progress_label.config, text="所有视频处理完毕")
             self.safe_ui_call(self.status_var.set, f"处理完成 | 当前倍速: {self.current_speed}倍")
             self.safe_ui_call(self.progress_var.set, 100)
-            if os.listdir(self.backup_save_path):
-                self.safe_ui_call(messagebox.showinfo, "备份提示", f"部分截图在:\n{self.backup_save_path}")
             if self.current_video_index >= len(self.video_paths):
                 self.log_message(f"所有 {len(self.video_paths)} 个视频处理完成")
                 self.safe_ui_call(messagebox.showinfo, "完成", "所有视频处理已完成")
@@ -917,22 +907,13 @@ ROI 用于限定检测范围，排除干扰提升效率。
             with open(test_file, 'w') as f:
                 f.write("test")
             os.remove(test_file)
-            self.log_message(f"主保存路径可写性测试通过: {self.save_path}")
+            self.log_message(f"保存路径可写性测试通过: {self.save_path}")
         except Exception as e:
-            error_msg = f"主保存路径不可写: {str(e)}\n将尝试使用备份路径: {self.backup_save_path}"
-            self.safe_ui_call(messagebox.showwarning, "路径警告", error_msg)
+            error_msg = f"保存路径不可写，无法保存截图:\n{self.save_path}\n错误: {str(e)}"
+            self.safe_ui_call(messagebox.showerror, "路径错误", error_msg)
             self.log_message(error_msg)
-            try:
-                test_file = os.path.join(self.backup_save_path, test_filename)
-                with open(test_file, 'w') as f:
-                    f.write("test")
-                os.remove(test_file)
-                self.log_message(f"备份保存路径可写性测试通过: {self.backup_save_path}")
-            except Exception as e2:
-                error_msg2 = f"备份保存路径也不可写: {str(e2)}\n程序无法保存截图，可能需要以管理员身份运行或更换保存路径。"
-                self.safe_ui_call(messagebox.showerror, "路径错误", error_msg2)
-                self.log_message(error_msg2)
-                return
+            return  # 不再尝试备份路径
+        
         self.processing = True
         self.paused = False
         self.current_video_index = 0
@@ -978,43 +959,24 @@ ROI 用于限定检测范围，排除干扰提升效率。
             try:
                 success = cv2.imwrite(main_path, marked_frame)
                 if success:
-                    self.log_message(f"使用OpenCV成功保存截图到主路径: {main_path}")
+                    self.log_message(f"使用OpenCV成功保存截图到: {main_path}")
                     self.safe_ui_call(self.info_label.config, text=f"已保存变化截图: {os.path.basename(main_path)}")
                     return main_path
             except Exception as e:
-                self.log_message(f"OpenCV保存到主路径失败: {str(e)}")
+                self.log_message(f"OpenCV保存失败: {str(e)}")
             try:
                 rgb_img = cv2.cvtColor(marked_frame, cv2.COLOR_BGR2RGB)
                 pil_img = Image.fromarray(rgb_img)
                 pil_img.save(main_path)
                 success = True
-                self.log_message(f"使用PIL成功保存截图到主路径: {main_path}")
+                self.log_message(f"使用PIL成功保存截图到: {main_path}")
                 self.safe_ui_call(self.info_label.config, text=f"已保存变化截图: {os.path.basename(main_path)}")
                 return main_path
             except Exception as e:
-                self.log_message(f"PIL保存到主路径失败: {str(e)}")
-            self.log_message(f"主路径保存失败，尝试备份路径: {self.backup_save_path}")
-            backup_path = os.path.join(self.backup_save_path, screenshot_name)
-            try:
-                cv2.imwrite(backup_path, marked_frame)
-                success = True
-                self.log_message(f"使用OpenCV成功保存截图到备份路径: {backup_path}")
-                self.safe_ui_call(self.info_label.config, text=f"已保存变化截图到备份路径: {os.path.basename(backup_path)}")
-                return backup_path
-            except Exception as e:
-                self.log_message(f"OpenCV保存到备份路径失败: {str(e)}")
-            try:
-                rgb_img = cv2.cvtColor(marked_frame, cv2.COLOR_BGR2RGB)
-                pil_img = Image.fromarray(rgb_img)
-                pil_img.save(backup_path)
-                success = True
-                self.log_message(f"使用PIL成功保存截图到备份路径: {backup_path}")
-                self.safe_ui_call(self.info_label.config, text=f"已保存变化截图到备份路径: {os.path.basename(backup_path)}")
-                return backup_path
-            except Exception as e:
-                self.log_message(f"PIL保存到备份路径失败: {str(e)}")
+                self.log_message(f"PIL保存失败: {str(e)}")
+
             if not success:
-                error_msg = "无法保存截图到任何路径，请检查权限设置。"
+                error_msg = "无法保存截图，请检查权限设置。"
                 self.safe_ui_call(messagebox.showerror, "保存错误", error_msg)
                 self.log_message(error_msg)
                 self.safe_ui_call(self.info_label.config, text="截图保存失败，请检查路径权限")
