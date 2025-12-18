@@ -74,12 +74,12 @@ class GMMVideoDetector:
 
     def __init__(self, root):
         self.root = root
-        self.root.title("视频画面变化检测 by geckotao")
+        self.root.title("视频画面变化检测v1.2 by geckotao")
         self.dpi_scale = self.get_dpi_scale()
         self.base_font_size = 10 
         self.scaled_font_size = int(self.base_font_size * self.dpi_scale)
-        self.root.geometry(f"{int(1200 * self.dpi_scale)}x{int(700 * self.dpi_scale)}")
-        self.root.minsize(int(1024 * self.dpi_scale), int(700 * self.dpi_scale))
+        self.root.geometry(f"{int(1200 * self.dpi_scale)}x{int(750 * self.dpi_scale)}")
+        self.root.minsize(int(1024 * self.dpi_scale), int(750 * self.dpi_scale))
         self.root.configure(bg="#f0f0f0")
         self.setup_dpi_awareness()
         self.style = ttk.Style()
@@ -236,6 +236,27 @@ class GMMVideoDetector:
         ttk.Label(roi_frame, text="操作: 左键加点，右键删点，R重置，滚轮缩放，关闭窗口确认。", 
                  font=("TkDefaultFont", max(8, int(8 * self.dpi_scale))), foreground="#666666").pack(anchor=tk.W)
         param_frame = ttk.LabelFrame(settings_scrollable_frame, text="检测参数", padding=(inner_pad, int(8 * self.dpi_scale)))
+
+        # >>> 新增：GMM 敏感度
+        ttk.Label(param_frame, text="GMM 敏感度 (varThreshold)").pack(anchor=tk.W, pady=(0, int(2 * self.dpi_scale)))
+        gmm_f = ttk.Frame(param_frame)
+        gmm_f.pack(fill=tk.X, pady=(0, int(8 * self.dpi_scale)))
+        self.gmm_var = tk.IntVar(value=25)
+        self.gmm_scale = ttk.Scale(gmm_f, from_=10, to=50, variable=self.gmm_var, command=self.update_gmm_threshold)
+        self.gmm_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, int(5 * self.dpi_scale)))
+        self.gmm_label = ttk.Label(gmm_f, text="25", width=int(6 * self.dpi_scale))
+        self.gmm_label.pack(side=tk.RIGHT)
+
+        # >>> 新增：帧差阈值
+        ttk.Label(param_frame, text="帧间差分阈值").pack(anchor=tk.W, pady=(0, int(2 * self.dpi_scale)))
+        fd_f = ttk.Frame(param_frame)
+        fd_f.pack(fill=tk.X, pady=(0, int(8 * self.dpi_scale)))
+        self.fd_var = tk.IntVar(value=30)
+        self.fd_scale = ttk.Scale(fd_f, from_=5, to=60, variable=self.fd_var, command=self.update_frame_diff_threshold)
+        self.fd_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, int(5 * self.dpi_scale)))
+        self.fd_label = ttk.Label(fd_f, text="30", width=int(6 * self.dpi_scale))
+        self.fd_label.pack(side=tk.RIGHT)
+
         param_frame.grid(row=row, column=0, sticky="ew", pady=frame_pady, padx=int(5 * self.dpi_scale))
         row += 1
         ttk.Label(param_frame, text="画面变化阈值 (%)").pack(anchor=tk.W, pady=(0, int(2 * self.dpi_scale)))
@@ -338,38 +359,44 @@ class GMMVideoDetector:
         )
         help_scrollbar = ttk.Scrollbar(help_frame, orient="vertical", command=help_text_widget.yview)
         help_text_widget.configure(yscrollcommand=help_scrollbar.set)
-        help_content = """
-【软件使用说明】
-本程序使用GMM（Gaussian Mixture Model)高斯混合模型算法检测画面变化率。
-1. 【添加视频文件】
-点击“添加视频文件”按钮，选择一个或多个视频（支持 MP4、AVI、MOV、MKV、FLV）。
-视频将显示在列表中，可多选后点击“移除”或“预览”。
-2. 【预览与选择关注区域（ROI）】
-选中视频后点击“预览”，可查看第一帧画面。
-点击“选择ROI区域”可在预览帧上绘制多边形区域：
-• 左键点击添加顶点
-• 右键点击删除最后一个顶点
-• 按 R 键重置所有点
-• 关闭窗口即确认选择（需 ≥3 个点）
-ROI 用于限定检测范围，排除干扰提升效率。
-3. 【设置检测参数】
-**画面变化阈值**：当画面变化比例超过此值时触发截图（默认 5%）。
-**截图最小间隔**：两次截图之间至少间隔指定秒数，避免截图过多。
-4. 【设置保存路径】
-默认截图保存在程序目录下的“变化截图”文件夹。
-可点击“更改”指定其他路径。
-5. 【开始处理】
-点击“开始处理”按钮，程序将逐个分析视频。
-支持暂停/继续、停止操作。
-可通过“处理速度控制”调整分析倍速（丢帧方式），加快处理。
-6. 【结果查看】
-检测到变化大于设定值时，会自动保存原始帧截图。
-截图文件名包含视频名、帧号和时间戳，便于追溯。
-所有操作和错误信息会记录在“检测日志”文件夹中。
-7. 【注意事项】
-建议根据视频画面设测试参数。
-高倍速处理是用丢帧方式处理，要注意丢帧太多会漏掉快速移动目标，同时为保证性能会降低预览更新频率。
-若截图保存失败，请检查磁盘权限或更换保存路径。
+        help_content = """视频画面变化检测工具 v1.2 
+       
+【操作步骤】
+
+① 添加视频
+  - 点击【参数设置】→【添加视频文件】
+  - 可多选，文件将显示在列表中
+  - 支持从列表中移除或清空
+
+② 预览与设置 ROI（可选但推荐）
+  - 选中视频后点击【预览】
+  - 点击【选择ROI区域】，在弹出窗口中：
+      • 左键：添加顶点
+      • 右键：删除最后一个点
+      • R 键：重置所有点
+      • 关闭窗口：确认 ROI（需 ≥3 个点）
+  - ROI 将以绿色多边形显示在预览画面
+
+③ 配置参数（【参数设置】标签页）
+  - 【画面变化阈值】：默认 5%。值越小越敏感。
+  - 【截图最小间隔】：默认 1 秒，避免连续截图。
+  - 【GMM 敏感度】：默认 25。值越大，越不敏感（可减少“车走后地面误报”）。
+  - 【帧间差分阈值】：默认 30。值越大，越忽略微小运动（可抑制噪点）。
+
+④ 设置保存路径
+  - 默认路径：程序目录下的“变化截图”文件夹
+  - 点击【更改】可自定义路径（需有写入权限）
+
+⑤ 开始处理
+  - 切换到【处理控制】标签页
+  - 选择处理倍速（1x 最精准，高倍速会跳帧加速但可能漏检）
+  - 点击【开始处理】
+  - 支持【暂停】/【停止】操作
+
+⑥ 查看结果
+  - 截图自动保存为：`视频名_frame_帧号_时间戳.jpg`
+  - 日志文件位于“检测日志”文件夹，记录所有操作与错误
+
 如有问题，请查看日志文件或联系开发者（geckotao@hotmail.com）。
 """
         help_text_widget.insert("1.0", help_content)
@@ -487,6 +514,18 @@ ROI 用于限定检测范围，排除干扰提升效率。
         self.interval_entry_var.set(f"{self.min_interval:.1f}")
         self.log_message(f"截图最小间隔设置为 {self.min_interval:.1f}秒")
 
+    def update_gmm_threshold(self, value):
+        val = int(float(value))
+        self.gmm_var.set(val)
+        self.safe_ui_call(self.gmm_label.config, text=str(val))
+        self.log_message(f"GMM 敏感度设置为 {val}")
+
+    def update_frame_diff_threshold(self, value):
+        val = int(float(value))
+        self.fd_var.set(val)
+        self.safe_ui_call(self.fd_label.config, text=str(val))
+        self.log_message(f"帧差阈值设置为 {val}")        
+
     def select_roi(self):
         if self.roi_selected:
             self.cancel_roi()
@@ -505,20 +544,25 @@ ROI 用于限定检测范围，排除干扰提升效率。
             self.preview_selected_video()
             if self.preview_frame is None:
                 return
+
         roi_window = tk.Toplevel(self.root)
         roi_window.title("选择关注区域 (ROI) - 左键加点，右键删点，按 R 重置，滚轮缩放，关闭窗口确认选择")
         roi_window.geometry("1024x700")
         roi_window.transient(self.root)
         roi_window.grab_set()
+
         canvas_frame = ttk.Frame(roi_window)
         canvas_frame.pack(fill=tk.BOTH, expand=True)
+
         canvas = tk.Canvas(canvas_frame, bg="black", highlightthickness=0)
         v_scroll = ttk.Scrollbar(canvas_frame, orient="vertical", command=canvas.yview)
         h_scroll = ttk.Scrollbar(canvas_frame, orient="horizontal", command=canvas.xview)
         canvas.configure(yscrollcommand=v_scroll.set, xscrollcommand=h_scroll.set)
+
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         v_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         h_scroll.pack(side=tk.BOTTOM, fill=tk.X)
+
         pil_img = Image.fromarray(cv2.cvtColor(self.preview_frame, cv2.COLOR_BGR2RGB))
         self.roi_original_size = pil_img.size
         self.roi_scale_factor = 1.0
@@ -527,6 +571,7 @@ ROI 用于限定检测范围，排除干扰提升效率。
         roi_points = []
         lines = []
         circles = []
+
         def draw_roi():
             for item in lines + circles:
                 canvas.delete(item)
@@ -536,14 +581,28 @@ ROI 用于限定检测范围，排除干扰提升效率。
                 return
             scaled = [(x * self.roi_scale_factor, y * self.roi_scale_factor) for x, y in roi_points]
             for i, (x, y) in enumerate(scaled):
-                c = canvas.create_oval(x-3, y-3, x+3, y+3, fill="red", outline="red")
+                c = canvas.create_oval(x - 3, y - 3, x + 3, y + 3, fill="red", outline="red")
                 circles.append(c)
                 if i > 0:
-                    l = canvas.create_line(scaled[i-1][0], scaled[i-1][1], x, y, fill="lime", width=2)
+                    l = canvas.create_line(scaled[i - 1][0], scaled[i - 1][1], x, y, fill="lime", width=2)
                     lines.append(l)
             if len(roi_points) > 2:
                 l = canvas.create_line(scaled[-1][0], scaled[-1][1], scaled[0][0], scaled[0][1], fill="lime", width=2)
                 lines.append(l)
+
+        def draw_grid():
+            # 绘制 10×10 的辅助网格（仅内部 9 条线）
+            img_w, img_h = self.roi_original_size
+            for i in range(1, 10):
+                # 垂直线（10列）
+                x = int((i / 10.0) * img_w * self.roi_scale_factor)
+                canvas.create_line(x, 0, x, int(img_h * self.roi_scale_factor),
+                                   fill="#cccccc", dash=(2, 4), tags="grid")
+                # 水平线（10行）
+                y = int((i / 10.0) * img_h * self.roi_scale_factor)
+                canvas.create_line(0, y, int(img_w * self.roi_scale_factor), y,
+                                   fill="#cccccc", dash=(2, 4), tags="grid")
+
         def update_image():
             new_width = int(self.roi_original_size[0] * self.roi_scale_factor)
             new_height = int(self.roi_original_size[1] * self.roi_scale_factor)
@@ -552,7 +611,9 @@ ROI 用于限定检测范围，排除干扰提升效率。
             canvas.config(scrollregion=(0, 0, new_width, new_height))
             canvas.delete("all")
             canvas.create_image(0, 0, anchor="nw", image=self.roi_photo)
-            draw_roi()
+            draw_grid()   # 先画网格
+            draw_roi()    # 再画 ROI
+
         def fit_to_window():
             win_w = roi_window.winfo_width()
             win_h = roi_window.winfo_height()
@@ -564,6 +625,7 @@ ROI 用于限定检测范围，排除干扰提升效率。
             scale_h = (win_h - 20) / img_h
             self.roi_scale_factor = min(scale_w, scale_h, 1.0)
             update_image()
+
         def on_click(event):
             x = canvas.canvasx(event.x)
             y = canvas.canvasy(event.y)
@@ -571,14 +633,17 @@ ROI 用于限定检测范围，排除干扰提升效率。
             orig_y = y / self.roi_scale_factor
             roi_points.append((orig_x, orig_y))
             draw_roi()
+
         def on_right_click(event):
             if roi_points:
                 roi_points.pop()
                 draw_roi()
+
         def on_key(event):
             if event.char.lower() == 'r':
                 roi_points.clear()
                 draw_roi()
+
         def on_mousewheel(event):
             x = canvas.canvasx(event.x)
             y = canvas.canvasy(event.y)
@@ -596,6 +661,7 @@ ROI 用于限定检测范围，排除干扰提升效率。
             dy = new_y - y
             canvas.xview_scroll(int(dx), "units")
             canvas.yview_scroll(int(dy), "units")
+
         canvas.bind("<Button-1>", on_click)
         canvas.bind("<Button-3>", on_right_click)
         roi_window.bind("<Key>", on_key)
@@ -603,8 +669,10 @@ ROI 用于限定检测范围，排除干扰提升效率。
         canvas.bind("<Button-4>", on_mousewheel)
         canvas.bind("<Button-5>", on_mousewheel)
         canvas.focus_set()
+
         roi_window.update_idletasks()
         fit_to_window()
+
         def on_close():
             if len(roi_points) >= 3:
                 self.roi_points = roi_points + [roi_points[0]]
@@ -612,6 +680,16 @@ ROI 用于限定检测范围，排除干扰提升效率。
                 self.safe_ui_call(self.roi_button.config, text="取消选取", command=self.cancel_roi)
                 self.safe_ui_call(self.roi_status_label.config, text=f"已选取关注区域，{len(roi_points)}个顶点")
                 self.create_roi_mask()
+                if self.roi_mask is not None:
+                    total_area = self.roi_mask.size
+                    roi_area = cv2.countNonZero(self.roi_mask)
+                    area_ratio = roi_area / total_area * 100
+                    area_info = f"已选取关注区域，{len(roi_points)}个顶点 ({area_ratio:.1f}% 画面)"
+                    self.safe_ui_call(self.roi_status_label.config, text=area_info)
+                    self.log_message(f"ROI 面积占比: {area_ratio:.1f}%")
+                else:
+                    self.safe_ui_call(self.roi_status_label.config, text=f"已选取关注区域，{len(roi_points)}个顶点")
+
                 if self.preview_frame is not None:
                     preview_with_roi = self.preview_frame.copy()
                     pts = np.array(self.roi_points, np.int32)
@@ -624,12 +702,14 @@ ROI 用于限定检测范围，排除干扰提升效率。
                 if len(roi_points) > 0:
                     self.safe_ui_call(messagebox.showerror, "错误", "至少需要3个点才能构成多边形")
             roi_window.destroy()
+
         roi_window.protocol("WM_DELETE_WINDOW", on_close)
 
     def cancel_roi(self):
         self.roi_selected = False
         self.roi_points = []
         self.roi_mask = None
+        self.processing_roi_mask = None 
         self.safe_ui_call(self.roi_button.config, text="选择ROI区域", command=self.select_roi)
         self.safe_ui_call(self.roi_status_label.config, text="未选取关注区域")
         if self.preview_frame is not None:
@@ -638,8 +718,14 @@ ROI 用于限定检测范围，排除干扰提升效率。
         self.log_message("已取消ROI区域选择")
         self.safe_ui_call(self.info_label.config, text="已取消ROI区域选择")
 
-    def create_roi_mask(self):
+    def create_roi_mask(self, target_size=None):
+        """
+        创建 ROI 掩码。
+        target_size: (width, height)，用于预生成处理用掩码。
+        """
         if not self.roi_selected or not self.roi_points or self.preview_frame is None:
+            self.roi_mask = None
+            self.processing_roi_mask = None
             return
         try:
             height, width = self.preview_frame.shape[:2]
@@ -647,12 +733,24 @@ ROI 用于限定检测范围，排除干扰提升效率。
             pts = np.array([[int(x), int(y)] for x, y in self.roi_points[:-1]], dtype=np.int32)
             cv2.fillPoly(mask, [pts], 255)
             self.roi_mask = mask
-            self.log_message(f"已创建ROI掩码，大小: {width}x{height}")
+            self.log_message(f"已创建原始ROI掩码，大小: {width}x{height}")
+
+            # 预生成处理用掩码（用于视频处理阶段）
+            if target_size is not None:
+                w, h = target_size
+                if (width, height) == (w, h):
+                    self.processing_roi_mask = mask
+                else:
+                    self.processing_roi_mask = cv2.resize(mask, (w, h), interpolation=cv2.INTER_NEAREST)
+                self.log_message(f"已缓存处理用ROI掩码，大小: {w}x{h}")
+            else:
+                self.processing_roi_mask = None
         except Exception as e:
             error_msg = f"创建ROI掩码时出错: {str(e)}"
             self.log_message(error_msg)
             self.safe_ui_call(messagebox.showerror, "错误", error_msg)
             self.roi_mask = None
+            self.processing_roi_mask = None
 
     def process_videos(self):
         try:
@@ -664,13 +762,13 @@ ROI 用于限定检测范围，排除干扰提升效率。
                 self.log_message(f"开始处理视频: {video_name}")
                 if self.cap is not None:
                     self.cap.release()
-                self.cap = cv2.VideoCapture(video_path)
-                if not self.cap.isOpened():
-                    error_msg = f"无法打开视频: {video_name}"
-                    self.safe_ui_call(messagebox.showerror, "错误", error_msg)
-                    self.log_message(error_msg)
+                self.cap, err = self.safe_video_capture(video_path)
+                if err:
+                    self.safe_ui_call(messagebox.showerror, "错误", err)
+                    self.log_message(err)
                     self.current_video_index += 1
                     continue
+
                 total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
                 fps = self.cap.get(cv2.CAP_PROP_FPS) or 30
                 ret, first_frame = self.cap.read()
@@ -678,27 +776,46 @@ ROI 用于限定检测范围，排除干扰提升效率。
                     self.log_message(f"无法读取首帧: {video_name}")
                     self.current_video_index += 1
                     continue
+
+                # 调整分辨率
                 if self.target_height > 0 and first_frame.shape[0] > self.target_height:
                     scale = self.target_height / first_frame.shape[0]
                     new_w = int(first_frame.shape[1] * scale)
                     new_h = self.target_height
                     first_frame = cv2.resize(first_frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
                 frame_height, frame_width = first_frame.shape[:2]
+                if self.roi_selected:
+                    self.create_roi_mask(target_size=(frame_width, frame_height))
+
                 gray = cv2.cvtColor(first_frame, cv2.COLOR_BGR2GRAY)
-                self.gmm = cv2.createBackgroundSubtractorMOG2(history=500, detectShadows=True)
-                if self.roi_selected and self.roi_mask is not None:
-                    roi_mask_resized = cv2.resize(self.roi_mask, (frame_width, frame_height))
-                    gray_roi = cv2.bitwise_and(gray, gray, mask=roi_mask_resized)
+
+                # ✅ 使用配置项初始化 GMM（关键修改）
+                self.gmm = cv2.createBackgroundSubtractorMOG2(
+                    history=1000,
+                    varThreshold=self.gmm_var.get(),
+                    detectShadows=False  # 必须关闭！
+                )
+
+                # 预热 GMM（用首帧）
+                if self.roi_selected and self.processing_roi_mask is not None:
+                    gray_roi = cv2.bitwise_and(gray, gray, mask=self.processing_roi_mask)
                     self.gmm.apply(gray_roi)
                 else:
                     self.gmm.apply(gray)
+
                 self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 frame_id = 0
                 last_saved_time = 0
+                self._proc_prev_gray = None  # 用于帧差
+                kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+
                 while frame_id < total_frames and self.processing:
                     if self.paused:
-                        time.sleep(0.05)  # 更频繁检查
+                        time.sleep(0.05)
                         continue
+
+                    # 倍速跳帧
                     if self.current_speed > 1:
                         target_frame = int(frame_id + self.current_speed)
                         if target_frame >= total_frames:
@@ -707,57 +824,120 @@ ROI 用于限定检测范围，排除干扰提升效率。
                         frame_id = target_frame
                     else:
                         frame_id += 1
+
                     ret, frame = self.cap.read()
                     if not ret:
                         break
+
+                    # 调整分辨率
                     if self.target_height > 0 and frame.shape[0] > self.target_height:
                         scale = self.target_height / frame.shape[0]
                         new_w = int(frame.shape[1] * scale)
                         new_h = self.target_height
                         frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
                     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                     current_roi_mask = None
-                    if self.roi_selected and self.roi_mask is not None:
-                        current_roi_mask = cv2.resize(self.roi_mask, (frame_width, frame_height))
-                        gray = cv2.bitwise_and(gray, gray, mask=current_roi_mask)
-                    fg_mask = self.gmm.apply(gray)
-                    _, fg_mask = cv2.threshold(fg_mask, 254, 255, cv2.THRESH_BINARY)
-                    total_pixels = cv2.countNonZero(current_roi_mask) if self.roi_selected else gray.size
-                    change_pixels = cv2.countNonZero(fg_mask)
-                    change_ratio = change_pixels / total_pixels if total_pixels > 0 else 0
+                    if self.roi_selected and self.processing_roi_mask is not None:
+                        gray = cv2.bitwise_and(gray, gray, mask=self.processing_roi_mask)
+                        current_roi_mask = self.processing_roi_mask
+
+                    # --- 【GMM + 帧差 + 连通区域】高精度检测开始 ---
+                    current_gray = gray.copy()
+
+                    # 初始化 prev_gray（跳过第一帧）
+                    if self._proc_prev_gray is None:
+                        self._proc_prev_gray = current_gray.copy()
+                        continue
+
+                    # 1. GMM 前景
+                    gmm_mask = self.gmm.apply(current_gray)
+                    _, gmm_mask = cv2.threshold(gmm_mask, 254, 255, cv2.THRESH_BINARY)
+
+                    # 2. 帧间差分（使用配置项）
+                    frame_diff = cv2.absdiff(current_gray, self._proc_prev_gray)
+                    _, diff_mask = cv2.threshold(frame_diff, self.fd_var.get(), 255, cv2.THRESH_BINARY)
+
+                    # 3. 融合：GMM ∩ 帧差
+                    fg_mask = cv2.bitwise_and(gmm_mask, diff_mask)
+
+                    # 4. 形态学去噪
+                    fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, kernel)
+                    fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_CLOSE, kernel)
+
+                    # 5. 连通区域过滤（有效变化）
+                    min_area = 100
+                    valid_change = False
+                    if cv2.countNonZero(fg_mask) > 0:
+                        num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(fg_mask, connectivity=8)
+                        for i in range(1, num_labels):
+                            if stats[i, cv2.CC_STAT_AREA] >= min_area:
+                                valid_change = True
+                                break
+
+                    # 6. 更新 prev_gray 为当前帧
+                    self._proc_prev_gray = current_gray.copy()
+
+                    # 7. 触发截图（用 valid_change，不再用 change_ratio）
                     now = time.time()
-                    if change_ratio > self.change_threshold and (now - last_saved_time) > self.min_interval:
+                    if valid_change and (now - last_saved_time) > self.min_interval:
                         last_saved_time = now
                         video_basename = os.path.splitext(video_name)[0]
                         saved_path = self.save_screenshot(frame.copy(), video_basename, frame_id)
                         if saved_path:
-                            self.safe_ui_call(self.status_var.set,
-                                f"已保存截图: {os.path.basename(saved_path)} | 当前倍速: {self.current_speed}倍")
+                            self.safe_ui_call(
+                                self.status_var.set,
+                                f"已保存截图: {os.path.basename(saved_path)} | GMM={self.gmm_var.get()}, FD={self.fd_var.get()}"
+                            )
+
+                    # 8. 计算 change_ratio（仅用于预览显示）
+                    total_pixels = cv2.countNonZero(current_roi_mask) if self.roi_selected else gray.size
+                    change_pixels = cv2.countNonZero(fg_mask)
+                    change_ratio = change_pixels / total_pixels if total_pixels > 0 else 0
+
+                    # 9. 预览更新（每 0.3 秒）
                     now_time = time.time()
                     if not hasattr(self, '_last_preview_update_time'):
                         self._last_preview_update_time = now_time
                     if now_time - self._last_preview_update_time >= 0.3:
                         color_mask = np.zeros_like(frame)
-                        color_mask[:, :, 2] = fg_mask
+                        color_mask[:, :, 2] = fg_mask  # 红色通道显示变化
                         marked = cv2.addWeighted(frame, 1, color_mask, 0.5, 0)
                         if self.roi_selected and self.roi_points:
                             pts = np.array(self.roi_points, np.int32)
                             cv2.polylines(marked, [pts], True, (0, 255, 0), 2)
-                        cv2.putText(marked, f"Change: {change_ratio*100:.1f}% | Speed: {self.current_speed}x",
-                                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                        cv2.putText(
+                            marked,
+                            f"Change: {change_ratio*100:.1f}% | Speed: {self.current_speed}x | GMM={self.gmm_var.get()}, FD={self.fd_var.get()}",
+                            (10, 30),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.5,
+                            (0, 0, 255),
+                            1
+                        )
                         rgb_marked = cv2.cvtColor(marked, cv2.COLOR_BGR2RGB)
                         self.safe_ui_call(self.display_frame, rgb_marked)
                         self._last_preview_update_time = now_time
+
+                    # 10. 进度更新
                     overall_progress = ((self.current_video_index + frame_id / total_frames) / len(self.video_paths)) * 100
                     self.safe_ui_call(self.progress_var.set, overall_progress)
-                    self.safe_ui_call(self.progress_label.config,
-                        text=f"处理: {video_name} ({frame_id}/{total_frames}) | Speed: {self.current_speed}x")
+                    self.safe_ui_call(
+                        self.progress_label.config,
+                        text=f"处理: {video_name} ({frame_id}/{total_frames}) | Speed: {self.current_speed}x"
+                    )
+
+                    # 11. 实时播放延迟（仅 1x 时）
                     if self.current_speed == 1:
                         start = time.time()
                         while time.time() - start < 1.0 / fps and self.processing and not self.paused:
                             time.sleep(0.01)
+
+                    # --- 检测逻辑结束 ---
+
                 self.cap.release()
                 self.current_video_index += 1
+
             self.processing = False
             self.safe_ui_call(self.progress_label.config, text="所有视频处理完毕")
             self.safe_ui_call(self.status_var.set, f"处理完成 | 当前倍速: {self.current_speed}倍")
@@ -765,25 +945,24 @@ ROI 用于限定检测范围，排除干扰提升效率。
             if self.current_video_index >= len(self.video_paths):
                 self.log_message(f"所有 {len(self.video_paths)} 个视频处理完成")
                 self.safe_ui_call(messagebox.showinfo, "完成", "所有视频处理已完成")
+
         except Exception as e:
             self.processing = False
             import traceback
-            error_detail = traceback.format_exc()  
+            error_detail = traceback.format_exc()
             error_msg = f"处理出错: {str(e)}\n详细信息: {error_detail}"
             self.log_message(error_msg)
             self.safe_ui_call(messagebox.showerror, "错误", error_msg)
-            release_error = ""
             if hasattr(self, 'cap') and self.cap is not None:
                 try:
                     if self.cap.isOpened():
                         self.cap.release()
                         self.log_message("异常处理中释放了cap资源")
                 except Exception as release_err:
-                    release_error = f"；释放资源时也出错: {str(release_err)}"
-                    self.log_message(release_error)
+                    self.log_message(f"释放资源时也出错: {str(release_err)}")
                 finally:
                     self.cap = None
-
+                    
     def preview_selected_video(self):
         if not self.video_paths:
             self.safe_ui_call(messagebox.showwarning, "警告", "请先添加视频文件")
@@ -799,15 +978,17 @@ ROI 用于限定检测范围，排除干扰提升效率。
         video_path = self.video_paths[video_index]
         video_name = os.path.basename(video_path)
         self.log_message(f"预览视频: {video_name}")
+
         if self.cap is not None:
             self.cap.release()
-        self.cap = cv2.VideoCapture(video_path)
-        if not self.cap.isOpened():
-            error_msg = f"无法打开视频文件: {video_name}"
-            self.safe_ui_call(messagebox.showerror, "错误", error_msg)
-            self.log_message(error_msg)
+
+        self.cap, err = self.safe_video_capture(video_path)
+        if err:
+            self.safe_ui_call(messagebox.showerror, "错误", err)
+            self.log_message(err)
             self.cap = None
             return
+
         ret, frame = self.cap.read()
         if ret:
             self.preview_frame = frame.copy()
@@ -822,6 +1003,29 @@ ROI 用于限定检测范围，排除干扰提升效率。
             self.log_message(error_msg)
             self.cap.release()
             self.cap = None
+
+    def safe_video_capture(self, video_path):
+        """安全打开视频，增强中文路径兼容性"""
+        if not os.path.exists(video_path):
+            return None, f"视频文件不存在: {video_path}"
+        try:
+            cap = cv2.VideoCapture(video_path)
+            if cap.isOpened():
+                return cap, None
+        except Exception:
+            pass
+
+        # Windows 下尝试长路径前缀
+        if os.name == 'nt':
+            try:
+                long_path = "\\\\?\\" + os.path.abspath(video_path)
+                cap = cv2.VideoCapture(long_path)
+                if cap.isOpened():
+                    return cap, None
+            except Exception:
+                pass
+
+        return None, f"无法打开视频（可能因中文路径或权限问题）: {os.path.basename(video_path)}"
 
     def add_videos(self):
         file_paths = filedialog.askopenfilenames(
@@ -951,41 +1155,32 @@ ROI 用于限定检测范围，排除干扰提升效率。
         self.log_message("处理已停止")
 
     def save_screenshot(self, marked_frame, video_basename, frame_num):
+        """
+        使用 PIL 保存截图，完全绕过 OpenCV 的中文路径问题。
+        输入 marked_frame 为 BGR 格式的 numpy array。
+        """
         try:
+            # 生成带时间戳的文件名（仅使用安全字符）
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            screenshot_name = f"{video_basename}_frame_{frame_num}_{timestamp}.jpg"
-            main_path = os.path.join(self.save_path, screenshot_name)
-            success = False
-            try:
-                success = cv2.imwrite(main_path, marked_frame)
-                if success:
-                    self.log_message(f"使用OpenCV成功保存截图到: {main_path}")
-                    self.safe_ui_call(self.info_label.config, text=f"已保存变化截图: {os.path.basename(main_path)}")
-                    return main_path
-            except Exception as e:
-                self.log_message(f"OpenCV保存失败: {str(e)}")
-            try:
-                rgb_img = cv2.cvtColor(marked_frame, cv2.COLOR_BGR2RGB)
-                pil_img = Image.fromarray(rgb_img)
-                pil_img.save(main_path)
-                success = True
-                self.log_message(f"使用PIL成功保存截图到: {main_path}")
-                self.safe_ui_call(self.info_label.config, text=f"已保存变化截图: {os.path.basename(main_path)}")
-                return main_path
-            except Exception as e:
-                self.log_message(f"PIL保存失败: {str(e)}")
+            safe_basename = "".join(c for c in video_basename if c.isalnum() or c in (' ', '-', '_')).rstrip()
+            screenshot_name = f"{safe_basename}_frame_{frame_num}_{timestamp}.jpg"
+            full_path = os.path.join(self.save_path, screenshot_name)
 
-            if not success:
-                error_msg = "无法保存截图，请检查权限设置。"
-                self.safe_ui_call(messagebox.showerror, "保存错误", error_msg)
-                self.log_message(error_msg)
-                self.safe_ui_call(self.info_label.config, text="截图保存失败，请检查路径权限")
-                return None
+            # 转换 BGR → RGB（PIL 要求）
+            rgb_frame = cv2.cvtColor(marked_frame, cv2.COLOR_BGR2RGB)
+            pil_img = Image.fromarray(rgb_frame)
+
+            # 使用 PIL 保存（支持 Unicode 路径）
+            pil_img.save(full_path, quality=95)
+            self.log_message(f"使用PIL成功保存截图到: {full_path}")
+            self.safe_ui_call(self.info_label.config, text=f"已保存变化截图: {os.path.basename(full_path)}")
+            return full_path
+
         except Exception as e:
-            error_msg = f"保存截图时发生错误: {str(e)}"
+            error_msg = f"保存截图失败（使用PIL）: {str(e)}"
             self.log_message(error_msg)
-            self.safe_ui_call(messagebox.showerror, "错误", error_msg)
-            self.safe_ui_call(self.info_label.config, text="截图保存失败")
+            self.safe_ui_call(messagebox.showerror, "保存错误", error_msg)
+            self.safe_ui_call(self.info_label.config, text="截图保存失败，请检查路径或磁盘空间")
             return None
 
 if __name__ == "__main__":
