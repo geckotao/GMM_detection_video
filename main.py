@@ -167,7 +167,7 @@ class GMMVideoDetector:
         self.init_log_file()
         self.setup_icon()
         self._log_file_ready = True
-        self.log_message("程序启动 (v1.3 版)")
+        self.log_message("程序启动 (v1.3.1 版)")
         self.log_message(f"保存路径：{self.save_path}")
     
     def log_message(self, message: str):
@@ -488,7 +488,7 @@ class GMMVideoDetector:
                                   padx=int(15 * self.dpi_scale))
         
         # 右侧版本
-        version_label = tk.Label(status_bar, text="v1.3",
+        version_label = tk.Label(status_bar, text="v1.3.1",
                                 bg=COLORS['bg_card'],
                                 fg=COLORS['text_sec'],
                                 font=('Microsoft YaHei UI', self.scaled_font_size),
@@ -795,7 +795,7 @@ class GMMVideoDetector:
                                       command=help_text_widget.yview)
         help_text_widget.configure(yscrollcommand=help_scrollbar.set)
         
-        help_content = """视频画面变化检测工具 v1.3
+        help_content = """视频画面变化检测工具 v1.3.1
 【操作步骤】
 ① 添加视频
   - 点击【参数设置】→【添加视频文件】
@@ -835,7 +835,13 @@ class GMMVideoDetector:
   - 截图自动保存为：`视频名_frame_帧号.jpg`
   - 日志文件位于“检测日志”文件夹，记录所有操作与错误
 
-如有问题，请联系开发者：geckotao@hotmail.com
+【免责声明】
+本软件为免费软件，可自由使用及传播，请勿用于商业用途。
+使用本工具软件需遵守相关法律法规。
+作者不对使用本工具软件造成的任何损失负责。 
+源码获取：
+https://github.com/geckotao/GMM_detection_video
+
 """
         help_text_widget.insert("1.0", help_content)
         help_text_widget.config(state=tk.DISABLED)
