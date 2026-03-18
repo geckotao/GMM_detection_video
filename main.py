@@ -184,20 +184,6 @@ class GMMVideoDetector:
                 except:
                     pass
     
-    def get_dpi_scale(self) -> float:
-        """简化 DPI 检测"""
-        try:
-            if os.name == 'nt':
-                try:
-                    ctypes.windll.user32.SetProcessDPIAware()
-                    dpi = ctypes.windll.user32.GetDpiForSystem()
-                    return dpi / 96.0
-                except:
-                    pass
-            return 1.0
-        except:
-            return 1.0
-    
     # ==================== 资源管理 ====================
     def _release_capture(self):
         with self.cap_lock:
