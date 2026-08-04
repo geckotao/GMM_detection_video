@@ -54,7 +54,7 @@ def get_app_data_dir() -> str:
     """获取每用户可写的数据目录（兼容 Program Files 安装）"""
     if os.name == 'nt':
         base = os.environ.get('APPDATA') or os.path.expanduser('~')
-        return os.path.join(base, 'GMMVideoDetector')
+        return os.path.join(base, 'GMM')
     return os.path.join(os.path.expanduser('~'), '.gmm_detector')
 
 
